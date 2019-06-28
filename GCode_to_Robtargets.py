@@ -11,12 +11,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import sys, getopt
 
-# USER´s VARIABLES
-filename = "MyLogoGCode.gcode"
-filename_robtargets = "MyLogoGCode_robtargets.txt"
-filename_moveLs = "MyLogoGCode_moveLs.txt"
-filename_numArrays = "MyLogoGCode_numArrays.txt"
+# GLOBAL VARIABLES
+inputfile = None
+outputfile_robtargets = "outputfile_robtargets.txt"
+outputfile_moveLs = "outputfile_moveLs.txt"
+
+rotation = "[-1, 0, 0, 0]"
+conf = "[-1, 0, 1, 0]"
 
 G90 = True
 
@@ -86,7 +89,7 @@ def writeRobtarget(i, position):
     z = position.z
     string1 = "CONST robtarget "
     string2 = "p" + str(i)
-    string3 = ":= [[" + str(x) + "," + str(y) + "," + str(z) + "], [-1, 0, 0, 0], [-1, 0, 1, 0], [ 9E+9,9E+9, 9E9, 9E9, 9E9, 9E9]];"
+    string3 = ":= [[" + str(x) + "," + str(y) + "," + str(z) + "], " + rotation + conf + ", [ 9E+9,9E+9, 9E9, 9E9, 9E9, 9E9]];"
     string4 = "\n"
     robtarget = string1 + string2 + string3 + string4
     robtargets.append(robtarget)
@@ -133,39 +136,79 @@ def plotPath(proyection="2d"):
 
 
 ################## MAIN ##################
-print("Start")
-# Load GCode and obtainn XYZ coordinates
-file = open(filename,"r")
-with open(filename,"r") as file:
-    line = file.readline()
-    lineNumberCount = 1
-    while line:
-        print("Line: " + str(lineNumberCount))
-        line = file.readline()       
-        parseCommand(line, G90)
-        lineNumberCount += 1
+def main(argv):
 
-# Write Robtargets and MoveL to a txt file
-for i in range(0,positions.shape[0]-1):    
-    position = positions.iloc[i]
-    writeRobtarget(i, position)    
-    writeMoveL(i)
+    global inputfile, outputfile_robtargets, outputfile_moveLs, rotation, conf
 
-with open(filename_robtargets,"w") as file:
-    for line in robtargets:
-        file.writelines(line)
+    try:
+         opts, args = getopt.getopt(argv,"hi:o:r:c:",["help","ifile=","ofile="])
+    except getopt.GetoptError:
+         print('Error')
+         sys.exit(2)
 
-with open(filename_moveLs,"w") as file:
-    for line in moveLs:
-        file.writelines(line)
+    for opt, arg in opts:
+        if opt in ("-h", "--help"):
+            print("Usage: GCode_to_Robtargets [-h | -i <inputfile> -o <outputfile>] ")
+            print('Options and arguments:')
+            print("-h     : Print this help message and exit")
+            print("-i arg : Input the file to be converted into ABB instructions (also --ifile)")
+            print("-o arg : Output filename containing the ABB instructions (also --ofile)")
+            print("-r arg : Specify the rotation of the robtargets (also --rot). Default: [-1, 0, 0, 0]")
+            print("-c arg : Specify the axis configuration of the robtargets (also --conf). Default: [-1, 0, 1, 0]")
+            sys.exit()
+            
+        elif opt in ("-i", "--ifile"):
+            inputfile = arg
+            
+        elif opt in ("-o", "--ofile"):
+            outputfile_robtargets = arg + "_robtargets.txt"
+            outputfile_moveLs = arg + "_moveLs.txt"
+            
+        elif opt in ("-r", "--rot"):
+            rotation = arg
 
-with open(filename_numArrays,"w") as file:
-    for line in NumArrays:
-        file.writelines(line)
+        elif opt in ("-c", "--conf"):
+            conf = arg
 
-print("Conversion finished")
-# Plot expected result
-plotPath()
+
+    # Check if Input file has been defined
+    if inputfile == None:
+         print("Inputfile not defined")
+         sys.exit(2)
+    
+    # Load GCode and obtain XYZ coordinates
+    file = open(inputfile,"r")
+    with open(inputfile,"r") as file:
+        line = file.readline()
+        lineNumberCount = 1
+        while line:
+            print("Line: " + str(lineNumberCount))
+            line = file.readline()       
+            parseCommand(line, G90)
+            lineNumberCount += 1
+    
+    # Write Robtargets and MoveL to a txt file
+    for i in range(0, positions.shape[0]-1):    
+        position = positions.iloc[i]
+        writeRobtarget(i, position)    
+        writeMoveL(i)
+
+    with open(outputfile_robtargets,"w") as file:
+        for line in robtargets:
+            file.writelines(line)
+
+    with open(outputfile_moveLs,"w") as file:
+        for line in moveLs:
+            file.writelines(line)
+
+    print("Conversion finished")
+    
+    # Plot expected result
+    plotPath()
+    
+    
+if __name__ == "__main__":
+   main(sys.argv[1:])
 
 
 
